@@ -1,0 +1,12 @@
+﻿<?xml version='1.0' encoding='utf-8'?>
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="ITCAutomaticSurveys.Properties" GeneratedClassName="Settings">
+  <Profiles />
+  <Settings>
+    <Setting Name="AutoSurveysFolder" Type="System.String" Scope="User">
+      <Value Profile="(Default)">\\psychfile\psych$\psych-lab-gfong\SMG\Access\Reports\Automatic Surveys\</Value>
+    </Setting>
+    <Setting Name="AutoSurveysFolderTest" Type="System.String" Scope="User">
+      <Value Profile="(Default)">D:\users\Automatic Surveys Test\</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>
