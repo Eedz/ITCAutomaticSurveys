@@ -37,7 +37,8 @@ namespace ITCAutomaticSurveys
                 ExcludeTempChanges = true,
                 Details = "",
                 ReportType = 1,
-                ColorSubs = true
+                ColorSubs = true,
+                Automatic = true
             };
             
             List<Survey> single = new List<Survey>();
@@ -71,7 +72,7 @@ namespace ITCAutomaticSurveys
                 "GROUP BY A.Survey, B.SurveyTitle";
             SqlCommand cmd = new SqlCommand(query, conn);
             cmd.Parameters.Add("@date", SqlDbType.DateTime);
-            cmd.Parameters["@date"].Value = Utilities.PreviousWorkDay(DateTime.Today);
+            cmd.Parameters["@date"].Value = DateTime.Today; // Utilities.PreviousWorkDay(DateTime.Today);
             SqlDataAdapter adapter = new SqlDataAdapter(cmd);
             adapter.Fill(surveyListTable);
 

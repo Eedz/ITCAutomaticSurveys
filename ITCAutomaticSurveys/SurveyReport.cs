@@ -76,7 +76,7 @@ namespace ITCAutomaticSurveys
         bool checkOrder;
         bool checkTables;
         bool batch;
-
+        bool automatic;
         #endregion
 
         #region Constructors
@@ -421,7 +421,7 @@ namespace ITCAutomaticSurveys
             if (surveyCodes.EndsWith(" vs. ")) { surveyCodes = surveyCodes.Substring(0, surveyCodes.Length - 5); }
             finalfilename = surveyCodes;
             if (details != "") { finalfilename += ", " + details; }
-            finalfilename += " generated";
+            if (!automatic) { finalfilename += " generated"; }
 
             return finalfilename;
         }
@@ -601,6 +601,7 @@ namespace ITCAutomaticSurveys
         public bool Batch { get => batch; set => batch = value; }
         public Comparison SurveyCompare { get => surveycompare; set => surveycompare = value; }
         public ReportLayout LayoutOptions { get => layoutoptions; set => layoutoptions = value; }
+        public bool Automatic { get => automatic; set => automatic = value; }
 
 
         #endregion
