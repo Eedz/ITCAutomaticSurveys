@@ -15,20 +15,44 @@ namespace ITCAutomaticSurveys
 
         static List<Survey> changed;
         static SurveyReport SR;
+        static bool allSurveys;
+        static string singleCode;
 
-        #if DEBUG 
+        #if DEBUG
         static String filePath = Properties.Settings.Default["AutoSurveysFolderTest"].ToString();
-        #else   
+        #else
         static String filePath = Properties.Settings.Default["AutoSurveysFolder"].ToString();
         #endif
 
         static void Main(string[] args)
         {
+
+            List<Survey> single = new List<Survey>();
             
+            if (args.Length == 0)
+            {
+
+            }
+            else
+            {
+                for (int i = 0; i < args.Length; i++)
+                {
+                    switch (args[i])
+                    {
+                        case "a":
+                            allSurveys = true;
+                            break;
+                        case "s":
+                            singleCode = args[i + 1];
+                            break;
+                    }
+                }
+            }
+
             changed =  new List<Survey>();
             // fill the 'changed' list
-            GetSurveyList();
-
+            GetSurveyList(allSurveys);
+            
             // set report options
             SR = new SurveyReport
             {
@@ -37,16 +61,15 @@ namespace ITCAutomaticSurveys
                 ExcludeTempChanges = true,
                 Details = "",
                 ReportType = 1,
-                ColorSubs = true,
-                Automatic = true
+                ColorSubs = true
             };
             
-            List<Survey> single = new List<Survey>();
+            
             // now run the report for each survey in the list
             for (int i = 0; i < changed.Count; i++) {
 
                 // delete existing document
-                foreach (string f in Directory.EnumerateFiles(filePath, changed[i].SurveyCode + "*.docx"))
+                foreach (string f in Directory.EnumerateFiles(filePath, changed[i].SurveyCode + "*.doc"))
                 {
                     File.Delete(f);
                 }
@@ -63,16 +86,34 @@ namespace ITCAutomaticSurveys
 
         }
 
-        public static void GetSurveyList()
+        public static void GetSurveyList(bool allSurveys)
         {
             SqlConnection conn = new SqlConnection(ConfigurationManager.ConnectionStrings["ISISConnectionString"].ConnectionString);
             DataTable surveyListTable = new DataTable("ChangedSurveys");
-            String query = "SELECT A.Survey, B.SurveyTitle " +
-                "FROM FN_getChangedSurveys(@date) AS A INNER JOIN tblStudyAttributes AS B ON A.Survey = B.Survey " + 
-                "GROUP BY A.Survey, B.SurveyTitle";
+            String query;
+            SqlParameter param;
+            if (allSurveys)
+            {
+                query = "SELECT Survey, SurveyTitle FROM tblStudyAttributes GROUP BY Survey, SurveyTitle";
+                param = new SqlParameter();
+            }
+            else if (singleCode != null)
+            {
+                query = "SELECT Survey, SurveyTitle FROM tblStudyAttributes WHERE Survey = @survey GROUP BY Survey, SurveyTitle";
+                param = new SqlParameter("@survey", SqlDbType.VarChar);
+                param.Value = singleCode;
+            }
+            else
+            {
+                query = "SELECT A.Survey, B.SurveyTitle " +
+                    "FROM FN_getChangedSurveys(@date) AS A INNER JOIN tblStudyAttributes AS B ON A.Survey = B.Survey " +
+                    "GROUP BY A.Survey, B.SurveyTitle";
+                param = new SqlParameter("@date", SqlDbType.DateTime);
+                param.Value = DateTime.Today;
+            }
+            
             SqlCommand cmd = new SqlCommand(query, conn);
-            cmd.Parameters.Add("@date", SqlDbType.DateTime);
-            cmd.Parameters["@date"].Value = DateTime.Today; // Utilities.PreviousWorkDay(DateTime.Today);
+            cmd.Parameters.Add(param);
             SqlDataAdapter adapter = new SqlDataAdapter(cmd);
             adapter.Fill(surveyListTable);
 

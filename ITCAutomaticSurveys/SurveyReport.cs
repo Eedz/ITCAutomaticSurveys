@@ -76,7 +76,6 @@ namespace ITCAutomaticSurveys
         bool checkOrder;
         bool checkTables;
         bool batch;
-        bool automatic;
         #endregion
 
         #region Constructors
@@ -225,10 +224,11 @@ namespace ITCAutomaticSurveys
 
             // create an instance of Word
             appWord = new Word.Application();
-
+            appWord.Options.CheckGrammarAsYouType = false;
+            appWord.Options.CheckSpellingAsYouType = false;
             // create the document
             docReport = appWord.Documents.Add("\\\\psychfile\\psych$\\psych-lab-gfong\\SMG\\Access\\Reports\\Templates\\SMGLandLet.dotx");
-
+            
             // add a table
             docReport.Tables.Add(docReport.Range(0, 0), rowCount + 1, columnCount );
 
@@ -245,6 +245,9 @@ namespace ITCAutomaticSurveys
                     docReport.Tables[1].Cell(r+2, c+1).Range.Text = reportTable.Rows[r][c].ToString();
                 }
             }
+            docReport.SpellingChecked = true ;
+            docReport.GrammarChecked = true;
+            docReport.Content.NoProofing = 1;
 
             // table style
             docReport.Tables[1].Rows.AllowBreakAcrossPages = -1;
@@ -332,7 +335,7 @@ namespace ITCAutomaticSurveys
             if (reportType == 3) { formatting.FormatShading(docReport); }
 
             fileName += ReportFileName() + ", " + DateTime.Today.ToString("d").Replace("-", "");
-
+            fileName += ".doc";
 
             //save the file
             docReport.SaveAs2(fileName);
@@ -421,7 +424,7 @@ namespace ITCAutomaticSurveys
             if (surveyCodes.EndsWith(" vs. ")) { surveyCodes = surveyCodes.Substring(0, surveyCodes.Length - 5); }
             finalfilename = surveyCodes;
             if (details != "") { finalfilename += ", " + details; }
-            if (!automatic) { finalfilename += " generated"; }
+            if (!batch) { finalfilename += " generated"; }
 
             return finalfilename;
         }
@@ -601,9 +604,6 @@ namespace ITCAutomaticSurveys
         public bool Batch { get => batch; set => batch = value; }
         public Comparison SurveyCompare { get => surveycompare; set => surveycompare = value; }
         public ReportLayout LayoutOptions { get => layoutoptions; set => layoutoptions = value; }
-        public bool Automatic { get => automatic; set => automatic = value; }
-
-
         #endregion
 
     }

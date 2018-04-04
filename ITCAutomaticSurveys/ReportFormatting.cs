@@ -30,49 +30,80 @@ namespace ITCAutomaticSurveys
 
             // indents
             f.Replacement.ClearFormatting();
+            f.Replacement.Text = "\\1";
             f.Replacement.ParagraphFormat.IndentCharWidth(1);
             FindAndReplace(doc, "\\[indent\\](*)\\[/indent\\]", f);
 
             f.Replacement.ClearFormatting();
+            f.Replacement.Text = "\\1";
             f.Replacement.ParagraphFormat.IndentCharWidth(2);
             FindAndReplace(doc, "\\[indent2\\](*)\\[/indent2\\]", f);
 
             f.Replacement.ClearFormatting();
+            f.Replacement.Text = "\\1";
             f.Replacement.ParagraphFormat.IndentCharWidth(3);
             FindAndReplace(doc, "\\[indent3\\](*)\\[/indent3\\]", f);
 
             f.Replacement.ClearFormatting();
+            f.Replacement.Text = "\\1";
             f.Replacement.ParagraphFormat.Alignment = Word.WdParagraphAlignment.wdAlignParagraphCenter;
             FindAndReplace(doc, "\\[center\\](*)\\[/center\\]", f);
+
+            // punctuation
+            f.Replacement.ClearFormatting();
+            f.Replacement.Text = " ";
+            FindAndReplace(doc, "&nbsp;", f);
+
+            f.Replacement.ClearFormatting();
+            f.Replacement.Text = ">";
+            FindAndReplace(doc, "&gt;", f);
+
+            f.Replacement.ClearFormatting();
+            f.Replacement.Text = "<";
+            FindAndReplace(doc, "&lt;", f);
+
+            f.Replacement.ClearFormatting();
+            f.Replacement.Text = "&";
+            FindAndReplace(doc, "&amp;", f);
+
+            f.Replacement.ClearFormatting();
+            f.Replacement.Text = "\"";
+            FindAndReplace(doc, "&quot;", f);
         }
 
         public void InterpretFontTags(Word.Application appWord, Word.Document doc) {
             Word.Range rng = doc.Content;
             Word.Find f = rng.Find;
-            appWord.Visible = true;
+            
             // Font options
             f.Replacement.ClearFormatting();
+            f.Replacement.Text = "\\1";
             f.Replacement.Font.Bold = 1;
             FindAndReplace(doc, "\\<strong\\>(*)\\</strong\\>", f);
 
             f.Replacement.ClearFormatting();
+            f.Replacement.Text = "\\1";
             f.Replacement.Font.Italic = 1;
             FindAndReplace(doc, "\\<em\\>(*)\\</em\\>", f);
-
+            
             f.Replacement.ClearFormatting();
+            f.Replacement.Text = "\\1";
             f.Replacement.Font.Underline = Word.WdUnderline.wdUnderlineSingle;
             FindAndReplace(doc, "\\<u\\>(*)\\</u\\>", f);
 
             // Font colors
             f.Replacement.ClearFormatting();
+            f.Replacement.Text = "\\1";
             f.Replacement.Font.Color = Word.WdColor.wdColorLightBlue;
             FindAndReplace(doc, "\\<lblue\\>(*)\\</lblue\\>", f);
 
             f.Replacement.ClearFormatting();
+            f.Replacement.Text = "\\1";
             f.Replacement.Font.Color = Word.WdColor.wdColorRed;
             FindAndReplace(doc, "\\<red\\>(*)\\</red\\>", f);
 
             f.Replacement.ClearFormatting();
+            f.Replacement.Text = "\\1";
             f.Replacement.Font.Color = Word.WdColor.wdColorGray35;
             FindAndReplace(doc, "\\<gray\\>(*)\\</gray\\>", f);
 
@@ -86,7 +117,6 @@ namespace ITCAutomaticSurveys
         public void FindAndReplace (Word.Document doc, String findText, Word.Find f)
         {
             f.MatchWildcards = true;
-            f.Replacement.Text = "\\1";
             bool done = false;
 
             while (!done){
@@ -95,6 +125,7 @@ namespace ITCAutomaticSurveys
                     Type.Missing, Type.Missing, Type.Missing,
                     Word.WdReplace.wdReplaceAll);
                 if (!f.Found) { done = true; }
+                
             }
             
            
