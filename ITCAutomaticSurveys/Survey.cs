@@ -666,7 +666,7 @@ namespace ITCAutomaticSurveys
             foreach (DataRow r in rawTable.Rows)
             {
                 currQnum = (String)r["Qnum"];
-                if (currQnum.Length != 4) { continue; }
+                if (currQnum.Length != 4 && currQnum.Length != 5) { continue; }
 
                 // get the integer value of the current qnum
                 int.TryParse(currQnum.Substring(0,3), out currQnumInt);

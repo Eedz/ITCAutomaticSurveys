@@ -109,7 +109,7 @@ namespace ITCAutomaticSurveys
                     "FROM FN_getChangedSurveys(@date) AS A INNER JOIN tblStudyAttributes AS B ON A.Survey = B.Survey " +
                     "GROUP BY A.Survey, B.SurveyTitle";
                 param = new SqlParameter("@date", SqlDbType.DateTime);
-                param.Value = DateTime.Today;
+                param.Value = "27-Aug-2018";//DateTime.Today;
             }
             
             SqlCommand cmd = new SqlCommand(query, conn);
