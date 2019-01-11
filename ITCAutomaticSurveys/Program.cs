@@ -17,6 +17,7 @@ namespace ITCAutomaticSurveys
         static SurveyReport SR;
         static bool allSurveys;
         static string singleCode;
+        static string singleDate;
 
         #if DEBUG
         static String filePath = Properties.Settings.Default["AutoSurveysFolderTest"].ToString();
@@ -42,6 +43,9 @@ namespace ITCAutomaticSurveys
                         case "a":
                             allSurveys = true;
                             break;
+                        case "d":
+                            singleDate = args[i + 1];
+                            break;
                         case "s":
                             singleCode = args[i + 1];
                             break;
@@ -52,7 +56,7 @@ namespace ITCAutomaticSurveys
             changed =  new List<Survey>();
             // fill the 'changed' list
             GetSurveyList(allSurveys);
-            
+
             // set report options
             SR = new SurveyReport
             {
@@ -103,17 +107,26 @@ namespace ITCAutomaticSurveys
                 param = new SqlParameter("@survey", SqlDbType.VarChar);
                 param.Value = singleCode;
             }
+            else if (singleDate != null)
+            {
+                query = "SELECT A.Survey, B.SurveyTitle " +
+                    "FROM FN_getChangedSurveys(@date) AS A INNER JOIN tblStudyAttributes AS B ON A.Survey = B.Survey " +
+                    "GROUP BY A.Survey, B.SurveyTitle";
+                param = new SqlParameter("@date", SqlDbType.DateTime);
+                param.Value = singleDate;
+            }
             else
             {
                 query = "SELECT A.Survey, B.SurveyTitle " +
                     "FROM FN_getChangedSurveys(@date) AS A INNER JOIN tblStudyAttributes AS B ON A.Survey = B.Survey " +
                     "GROUP BY A.Survey, B.SurveyTitle";
                 param = new SqlParameter("@date", SqlDbType.DateTime);
-                param.Value = "27-Aug-2018";//DateTime.Today;
+                param.Value = DateTime.Today;
             }
             
             SqlCommand cmd = new SqlCommand(query, conn);
-            cmd.Parameters.Add(param);
+            if (!allSurveys) cmd.Parameters.Add(param);
+
             SqlDataAdapter adapter = new SqlDataAdapter(cmd);
             adapter.Fill(surveyListTable);
 
