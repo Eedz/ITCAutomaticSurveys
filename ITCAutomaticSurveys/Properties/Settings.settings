@@ -8,5 +8,11 @@
     <Setting Name="AutoSurveysFolderTest" Type="System.String" Scope="User">
       <Value Profile="(Default)">D:\users\Automatic Surveys Test\</Value>
     </Setting>
+    <Setting Name="AutoSurveysFolderWithFilters" Type="System.String" Scope="User">
+      <Value Profile="(Default)">\\psychfile\psych$\psych-lab-gfong\SMG\Access\Reports\Automatic Surveys\With Filters\</Value>
+    </Setting>
+    <Setting Name="AutoSurveysFolderWithFiltersTest" Type="System.String" Scope="User">
+      <Value Profile="(Default)">D:\users\Automatic Surveys Test\With Filters\</Value>
+    </Setting>
   </Settings>
 </SettingsFile>

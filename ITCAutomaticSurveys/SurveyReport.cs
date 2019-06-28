@@ -224,11 +224,10 @@ namespace ITCAutomaticSurveys
 
             // create an instance of Word
             appWord = new Word.Application();
-            appWord.Options.CheckGrammarAsYouType = false;
-            appWord.Options.CheckSpellingAsYouType = false;
+
             // create the document
             docReport = appWord.Documents.Add("\\\\psychfile\\psych$\\psych-lab-gfong\\SMG\\Access\\Reports\\Templates\\SMGLandLet.dotx");
-            
+
             // add a table
             docReport.Tables.Add(docReport.Range(0, 0), rowCount + 1, columnCount );
 
@@ -245,9 +244,6 @@ namespace ITCAutomaticSurveys
                     docReport.Tables[1].Cell(r+2, c+1).Range.Text = reportTable.Rows[r][c].ToString();
                 }
             }
-            docReport.SpellingChecked = true ;
-            docReport.GrammarChecked = true;
-            docReport.Content.NoProofing = 1;
 
             // table style
             docReport.Tables[1].Rows.AllowBreakAcrossPages = -1;

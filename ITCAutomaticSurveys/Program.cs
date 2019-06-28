@@ -1,156 +1,197 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Data.SqlClient;
 using System.Data;
 using System.Configuration;
 using System.IO;
+using ITCLib;
 
 namespace ITCAutomaticSurveys
 {
     class Program
     {
-
-        static List<Survey> changed;
+        static List<ReportSurvey> changed;
         static SurveyReport SR;
         static bool allSurveys;
         static string singleCode;
         static string singleDate;
 
         #if DEBUG
-        static String filePath = Properties.Settings.Default["AutoSurveysFolderTest"].ToString();
-        #else
-        static String filePath = Properties.Settings.Default["AutoSurveysFolder"].ToString();
-        #endif
+        static string filePath = Properties.Settings.Default["AutoSurveysFolderTest"].ToString();
+        static string filePathFilters = Properties.Settings.Default["AutoSurveysFolderWithFiltersTest"].ToString();
+#else
+        static string filePath = Properties.Settings.Default["AutoSurveysFolder"].ToString();
+        static string filePathFilters = Properties.Settings.Default["AutoSurveysFolderWithFilters"].ToString();
+#endif
 
         static void Main(string[] args)
         {
+            // process arguments
+            if (args.Length != 0)
+                ProcessArgs(args);
 
-            List<Survey> single = new List<Survey>();
-            
-            if (args.Length == 0)
-            {
+            changed = GetSurveyList(allSurveys);
 
-            }
-            else
-            {
-                for (int i = 0; i < args.Length; i++)
-                {
-                    switch (args[i])
-                    {
-                        case "a":
-                            allSurveys = true;
-                            break;
-                        case "d":
-                            singleDate = args[i + 1];
-                            break;
-                        case "s":
-                            singleCode = args[i + 1];
-                            break;
-                    }
-                }
-            }
-
-            changed =  new List<Survey>();
-            // fill the 'changed' list
-            GetSurveyList(allSurveys);
-
-            // set report options
-            SR = new SurveyReport
-            {
-                Batch = true,
-                VarChangesCol = true,
-                ExcludeTempChanges = true,
-                Details = "",
-                ReportType = 1,
-                ColorSubs = true
-            };
-            
-            
             // now run the report for each survey in the list
             for (int i = 0; i < changed.Count; i++) {
 
                 // delete existing document
-                foreach (string f in Directory.EnumerateFiles(filePath, changed[i].SurveyCode + "*.doc"))
+                foreach (string f in Directory.EnumerateFiles(filePath, changed[i].SurveyCode + ",*.doc?"))
                 {
                     File.Delete(f);
                 }
 
-                // add the current survey to the report
-                single.Add(changed[i]);
-                SR.Surveys = single;
-                SR.ColOrder = changed[i].SurveyCode;
-                SR.FileName = filePath;
-                // run the report
-                SR.GenerateSurveyReport();
-                single = new List<Survey>();
+                // populate the survey
+                DBAction.FillQuestions(changed[i]);
+
+                RefreshSurvey(changed[i], false);
+
+                // delete existing document
+                foreach (string f in Directory.EnumerateFiles(filePathFilters, changed[i].SurveyCode + ",*.doc?"))
+                {
+                    File.Delete(f);
+                }
+
+                RefreshSurvey(changed[i], true);
+
             }
 
         }
 
-        public static void GetSurveyList(bool allSurveys)
+        private static void RefreshSurvey(ReportSurvey s, bool withFilters)
         {
-            SqlConnection conn = new SqlConnection(ConfigurationManager.ConnectionStrings["ISISConnectionString"].ConnectionString);
-            DataTable surveyListTable = new DataTable("ChangedSurveys");
-            String query;
-            SqlParameter param;
-            if (allSurveys)
+           // set report options
+           SR = new SurveyReport
+           {
+               Batch = true,
+               VarChangesCol = true,
+               ExcludeTempChanges = true,
+               Details = "",
+               ReportType = ReportTypes.Standard,
+               ColorSubs = true
+           };
+
+            s.FilterCol = withFilters;
+            if (withFilters)
             {
-                query = "SELECT Survey, SurveyTitle FROM tblStudyAttributes GROUP BY Survey, SurveyTitle";
-                param = new SqlParameter();
-            }
-            else if (singleCode != null)
-            {
-                query = "SELECT Survey, SurveyTitle FROM tblStudyAttributes WHERE Survey = @survey GROUP BY Survey, SurveyTitle";
-                param = new SqlParameter("@survey", SqlDbType.VarChar);
-                param.Value = singleCode;
-            }
-            else if (singleDate != null)
-            {
-                query = "SELECT A.Survey, B.SurveyTitle " +
-                    "FROM FN_getChangedSurveys(@date) AS A INNER JOIN tblStudyAttributes AS B ON A.Survey = B.Survey " +
-                    "GROUP BY A.Survey, B.SurveyTitle";
-                param = new SqlParameter("@date", SqlDbType.DateTime);
-                param.Value = singleDate;
+                s.MakeFilterList();
+                SR.FileName = filePathFilters;
             }
             else
             {
-                query = "SELECT A.Survey, B.SurveyTitle " +
-                    "FROM FN_getChangedSurveys(@date) AS A INNER JOIN tblStudyAttributes AS B ON A.Survey = B.Survey " +
-                    "GROUP BY A.Survey, B.SurveyTitle";
-                param = new SqlParameter("@date", SqlDbType.DateTime);
-                param.Value = DateTime.Today;
+                SR.FileName = filePath;
             }
-            
-            SqlCommand cmd = new SqlCommand(query, conn);
-            if (!allSurveys) cmd.Parameters.Add(param);
 
-            SqlDataAdapter adapter = new SqlDataAdapter(cmd);
-            adapter.Fill(surveyListTable);
+            // add the current survey to the report
+            SR.AddSurvey(s);
 
-            
-            Survey s;
-            // get list of surveys that need to be generated (via server query)
-            foreach (DataRow r in surveyListTable.Rows)
+            // run the report
+            SR.GenerateReport();
+            SR.OutputReportTableXML();
+
+            GC.Collect();
+        }
+
+        // Set application options by examining the command line arguments
+        private static void ProcessArgs(string [] args)
+        {
+            for (int i = 0; i < args.Length; i++)
             {
-                s = new Survey
+                switch (args[i])
                 {
-                    ID = 1,
-                    SurveyCode = r["Survey"].ToString(),
-                    Backend = DateTime.Today,
-                    Primary = true,
-                    Qnum = true,
-                    IncludePrevNames = true,
-                    ExcludeTempNames = true,
-                    WebName = r["SurveyTitle"].ToString()
-
-                };
-                changed.Add(s);
-                
+                    case "a":
+                        allSurveys = true;
+                        break;
+                    case "d":
+                        singleDate = args[i + 1];
+                        break;
+                    case "s":
+                        singleCode = args[i + 1];
+                        break;
+                }
             }
-            conn.Close();
+        }
+
+        /// <summary>
+        ///  Return a list of surveys to be generated.
+        /// </summary>
+        /// <param name="allSurveys"></param>
+        private static List<ReportSurvey> GetSurveyList(bool allSurveys)
+        {
+            List<ReportSurvey> changed;
+            ReportSurvey s;
+
+            changed = new List<ReportSurvey>();
+
+            using (SqlDataAdapter sql = new SqlDataAdapter())
+            using (SqlConnection conn = new SqlConnection(ConfigurationManager.ConnectionStrings["ISISConnectionStringTest"].ConnectionString))
+            {
+                conn.Open();
+
+                string query="";
+            
+                sql.SelectCommand = new SqlCommand();
+
+                if (allSurveys)
+                {
+                    query = "SELECT ID, Survey, SurveyTitle FROM tblStudyAttributes";
+                    
+                }
+                else if (singleCode != null)
+                {
+                    query = "SELECT ID, Survey, SurveyTitle FROM tblStudyAttributes WHERE Survey = @survey";
+                    sql.SelectCommand.Parameters.AddWithValue("@survey", singleCode);
+                }
+                else if (singleDate != null)
+                {
+                    query = "SELECT A.ID, A.Survey, B.SurveyTitle " +
+                        "FROM FN_getChangedSurveys(@date) AS A INNER JOIN tblStudyAttributes AS B ON A.Survey = B.Survey " +
+                        "GROUP BY A.ID, A.Survey, B.SurveyTitle";
+
+                    sql.SelectCommand.Parameters.AddWithValue("@date", singleDate);
+                }
+                else
+                {
+                    query = "SELECT A.ID, A.Survey, B.SurveyTitle " +
+                        "FROM FN_getChangedSurveys(@date) AS A INNER JOIN tblStudyAttributes AS B ON A.Survey = B.Survey " +
+                        "GROUP BY A.ID, A.Survey, B.SurveyTitle";
+
+                    sql.SelectCommand.Parameters.AddWithValue("@date", DateTime.Today);
+
+                }
+
+                sql.SelectCommand.Connection = conn;
+                sql.SelectCommand.CommandText = query;
+
+                try
+                {
+                    using (SqlDataReader rdr = sql.SelectCommand.ExecuteReader())
+                    {
+                        while (rdr.Read())
+                        {
+                            s = new ReportSurvey
+                            {
+                                ID = 1,
+                                SID = (int)rdr["ID"],
+                                SurveyCode = rdr["Survey"].ToString(),
+                                Title = rdr["SurveyTitle"].ToString(),
+                                Backend = DateTime.Today,
+                                Primary = true,
+                                Qnum = true,
+                                WebName = rdr["SurveyTitle"].ToString()
+
+                            };
+                            changed.Add(s);
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    int i = 0;
+                }
+
+                return changed;              
+            }
         }
     }
 }
