@@ -26,20 +26,35 @@ namespace ITCAutomaticSurveys
 
         static void Main(string[] args)
         {
+
             // process arguments
             if (args.Length != 0)
                 ProcessArgs(args);
+
+            // delete documents for surveys that no longer exist
+            RemoveDeletedSurveys(filePath);
+            RemoveDeletedSurveys(filePathFilters);
 
             changed = GetSurveyList(allSurveys);
 
             // now run the report for each survey in the list
             for (int i = 0; i < changed.Count; i++) {
 
+                Console.WriteLine("Generating " + changed[i].SurveyCode + "...");
+
                 // delete existing document
-                foreach (string f in Directory.EnumerateFiles(filePath, changed[i].SurveyCode + ",*.doc?"))
+                try
                 {
-                    File.Delete(f);
+                    foreach (string f in Directory.EnumerateFiles(filePath, changed[i].SurveyCode + ",*.doc?"))
+                    {
+                        File.Delete(f);
+                    }
+                }catch(Exception e)
+                {
+                    Console.WriteLine(filePath + " in use, skipping...");
+                    continue;
                 }
+
 
                 // populate the survey
                 DBAction.FillQuestions(changed[i]);
@@ -53,9 +68,40 @@ namespace ITCAutomaticSurveys
                 }
 
                 RefreshSurvey(changed[i], true);
-
+                Console.WriteLine("Done!");
             }
 
+        }
+
+        private static void RemoveDeletedSurveys(string folder)
+        {
+            // get list of all surveys
+            List<string> surveyCodes = DBAction.GetSurveyList();
+
+            // loop through files
+            DirectoryInfo dir = new DirectoryInfo(folder);
+     
+            var files = dir.GetFiles();
+           
+            foreach (FileInfo file in files)
+            {
+                if (!file.Name.EndsWith(".docx"))
+                    continue;
+
+                int comma = file.Name.IndexOf(",");
+                
+                if (comma == -1)
+                    continue;
+
+                // get survey code
+                string surveyCode = file.Name.Substring(0, comma);
+
+                // check against survey list
+                if (!surveyCodes.Contains(surveyCode))
+                {
+                    file.Delete();
+                }
+            }
         }
 
         private static void RefreshSurvey(ReportSurvey s, bool withFilters)
@@ -64,7 +110,7 @@ namespace ITCAutomaticSurveys
            SR = new SurveyReport
            {
                Batch = true,
-               VarChangesCol = true,
+               VarChangesCol = withFilters,
                ExcludeTempChanges = true,
                Details = "",
                ReportType = ReportTypes.Standard,
@@ -75,6 +121,11 @@ namespace ITCAutomaticSurveys
             if (withFilters)
             {
                 s.MakeFilterList();
+
+                
+                // previous names (for Var column)
+                DBAction.FillPreviousNames(s, SR.ExcludeTempChanges);
+
                 SR.FileName = filePathFilters;
             }
             else
@@ -90,6 +141,7 @@ namespace ITCAutomaticSurveys
             SR.OutputReportTableXML();
 
             GC.Collect();
+            
         }
 
         // Set application options by examining the command line arguments
@@ -120,11 +172,11 @@ namespace ITCAutomaticSurveys
         {
             List<ReportSurvey> changed;
             ReportSurvey s;
-
+            
             changed = new List<ReportSurvey>();
 
             using (SqlDataAdapter sql = new SqlDataAdapter())
-            using (SqlConnection conn = new SqlConnection(ConfigurationManager.ConnectionStrings["ISISConnectionStringTest"].ConnectionString))
+            using (SqlConnection conn = new SqlConnection(ConfigurationManager.ConnectionStrings["ISISConnectionString"].ConnectionString))
             {
                 conn.Open();
 
@@ -149,6 +201,7 @@ namespace ITCAutomaticSurveys
                         "GROUP BY A.ID, A.Survey, B.SurveyTitle";
 
                     sql.SelectCommand.Parameters.AddWithValue("@date", singleDate);
+                    
                 }
                 else
                 {
@@ -157,9 +210,9 @@ namespace ITCAutomaticSurveys
                         "GROUP BY A.ID, A.Survey, B.SurveyTitle";
 
                     sql.SelectCommand.Parameters.AddWithValue("@date", DateTime.Today);
-
+                   
                 }
-
+                
                 sql.SelectCommand.Connection = conn;
                 sql.SelectCommand.CommandText = query;
 

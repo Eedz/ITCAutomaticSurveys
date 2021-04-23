@@ -91,6 +91,10 @@
     </COMReference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\DataAccessLayer\DataAccessLayer\DataAccessLayer.csproj">
+      <Project>{a95ec154-7009-4323-a432-1261b2cc7124}</Project>
+      <Name>DataAccessLayer</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\ITCLib\ITCLib\ITCLib.csproj">
       <Project>{1f878409-8602-4dc3-a0cb-45cccc21289e}</Project>
       <Name>ITCLib</Name>
