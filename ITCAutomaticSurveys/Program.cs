@@ -1,22 +1,28 @@
-﻿using System;
+﻿using ITCLib;
+using ITCReportLib;
+using System;
 using System.Collections.Generic;
-using System.Data.SqlClient;
-using System.Data;
 using System.Configuration;
+using System.Data;
+using System.Data.SqlClient;
 using System.IO;
-using ITCLib;
+using System.Linq;
 
 namespace ITCAutomaticSurveys
 {
     class Program
     {
-        static List<ReportSurvey> changed;
-        static SurveyReport SR;
         static bool allSurveys;
         static string singleCode;
-        static string singleDate;
+        static DateTime? singleDate = null;
 
-        #if DEBUG
+        static List<ReportSurvey> SurveyList;
+
+
+        static StreamWriter log;
+        static string logFile = "log.txt";
+
+#if DEBUG
         static string filePath = Properties.Settings.Default["AutoSurveysFolderTest"].ToString();
         static string filePathFilters = Properties.Settings.Default["AutoSurveysFolderWithFiltersTest"].ToString();
 #else
@@ -26,57 +32,154 @@ namespace ITCAutomaticSurveys
 
         static void Main(string[] args)
         {
+            try
+            {
+                string strExeFilePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                string strWorkPath = System.IO.Path.GetDirectoryName(strExeFilePath);
+
+                log = File.AppendText(Path.Combine(strWorkPath, logFile));
+            }catch (UnauthorizedAccessException e)
+            {
+                Console.WriteLine(e.Message);
+            }
+            LogMessage("Generating automatic surveys...");
 
             // process arguments
             if (args.Length != 0)
                 ProcessArgs(args);
 
+            SurveyList = (from Survey s in DBAction.GetAllSurveysInfo()
+                          select new ReportSurvey(s)).ToList();
+
+            LogMessage("Checking for deleted surveys...");
             // delete documents for surveys that no longer exist
             RemoveDeletedSurveys(filePath);
             RemoveDeletedSurveys(filePathFilters);
 
-            changed = GetSurveyList(allSurveys);
+            List<ReportSurvey> changed = GetSurveys();
 
             // now run the report for each survey in the list
-            for (int i = 0; i < changed.Count; i++) {
+            foreach (ReportSurvey survey in changed) 
+            {
+                survey.AddQuestions(DBAction.GetSurveyQuestions(survey));
 
-                Console.WriteLine("Generating " + changed[i].SurveyCode + "...");
-
-                // delete existing document
-                try
+                var images = DBAction.GetSurveyImages(survey);
+                foreach (SurveyImage img in images)
                 {
-                    foreach (string f in Directory.EnumerateFiles(filePath, changed[i].SurveyCode + ",*.doc?"))
-                    {
-                        File.Delete(f);
-                    }
-                }catch(Exception e)
-                {
-                    Console.WriteLine(filePath + " in use, skipping...");
-                    continue;
+                    var q = survey.QuestionByRefVar(img.VarName);
+                    if (q != null) q.Images.Add(img);
                 }
 
+                survey.MakeFilterList();
+                DBAction.FillPreviousNames(survey, true);
 
-                // populate the survey
-                DBAction.FillQuestions(changed[i]);
-
-                RefreshSurvey(changed[i], false);
-
-                // delete existing document
-                foreach (string f in Directory.EnumerateFiles(filePathFilters, changed[i].SurveyCode + ",*.doc?"))
-                {
-                    File.Delete(f);
-                }
-
-                RefreshSurvey(changed[i], true);
-                Console.WriteLine("Done!");
+                GenerateSurvey(survey, false, filePath);        // no filters               
+                GenerateSurvey(survey, true, filePathFilters);  // with filters
             }
 
+            LogMessage("Done!");
+            log.WriteLine();
+            log.Close();
         }
 
+        /// <summary>
+        /// Generate a survey report for the provided survey. Existing reports are deleted first.
+        /// </summary>
+        /// <param name="survey"></param>
+        /// <param name="withFilters"></param>
+        /// <param name="filePath"></param>
+        private static void GenerateSurvey(ReportSurvey survey, bool withFilters, string filePath)
+        {
+            // delete existing document
+            try
+            {
+                foreach (string f in Directory.EnumerateFiles(filePath, survey.SurveyCode + ",*.doc?"))
+                {
+                    LogMessage("Removing existing file: " + f);
+                    File.Delete(f);
+                }
+            }
+            catch
+            {
+                LogMessage("File in use, skipping " + survey.SurveyCode + "...");
+                return;
+            }
+
+            try
+            {
+                if (withFilters)
+                    LogMessage("Generating " + survey.SurveyCode + " (with filters)...");
+                else
+                    LogMessage("Generating " + survey.SurveyCode + "...");
+                
+                RefreshSurvey(survey, withFilters);
+            }
+            catch (Exception e)
+            {
+                LogMessage("Error generating " + survey.SurveyCode + "\r\n" + e.Message);
+            }
+        }
+
+        /// <summary>
+        /// Create a standard report for the provided survey.
+        /// </summary>
+        /// <param name="survey">Report survey content.</param>
+        /// <param name="withFilters">True if the report should include a filter column.</param>
+        private static void RefreshSurvey(ReportSurvey survey, bool withFilters)
+        {
+            StandardSurveyReport report = new StandardSurveyReport(survey);
+
+            report.Options.FormattingOptions.VarChangesCol = withFilters;
+            report.Options.FormattingOptions.ColorSubs = true;
+
+            if (withFilters)
+                report.SurveyContent.ContentOptions.ContentColumns.Add("Filters");
+            
+            report.CreateReport();
+
+            string dateString = singleDate == null ? DateTime.Today.ToString("ddMMMyyyy") : singleDate.Value.ToString("ddMMMyyyy");
+            string filepath = withFilters? filePathFilters : filePath;
+            string filename = withFilters? report.SurveyContent.SurveyCode + ", with filters, " + dateString : report.SurveyContent.SurveyCode + ", " + dateString;
+            
+            StandardReportPrinter printer = new StandardReportPrinter(report, filename);
+            printer.FolderPath = filepath;
+            printer.ToC = true;
+            printer.Unattended = true;
+
+            if (withFilters)
+            {
+                printer.OutputOptions.PaperSize = PaperSizes.Legal;
+            }
+
+            printer.PrintReport();
+
+            GC.Collect();
+        }
+
+        /// <summary>
+        /// Write a message to the log and the console.
+        /// </summary>
+        /// <param name="message"></param>
+        private static void LogMessage(string message)
+        {
+            try
+            {
+                log.WriteLine(DateTime.Now + ": " + message);
+                Console.WriteLine(message);
+            }catch (UnauthorizedAccessException e)
+            {
+                Console.WriteLine("Unable to write to log file. Access denied.");
+            }
+        }
+
+        /// <summary>
+        /// Remove any files in the folder that have a survey code that no longer exists.
+        /// </summary>
+        /// <param name="folder"></param>
         private static void RemoveDeletedSurveys(string folder)
         {
             // get list of all surveys
-            List<string> surveyCodes = DBAction.GetSurveyList();
+            List<string> surveyCodes = SurveyList.Select(x=>x.SurveyCode).ToList();
 
             // loop through files
             DirectoryInfo dir = new DirectoryInfo(folder);
@@ -104,47 +207,10 @@ namespace ITCAutomaticSurveys
             }
         }
 
-        private static void RefreshSurvey(ReportSurvey s, bool withFilters)
-        {
-           // set report options
-           SR = new SurveyReport
-           {
-               Batch = true,
-               VarChangesCol = withFilters,
-               ExcludeTempChanges = true,
-               Details = "",
-               ReportType = ReportTypes.Standard,
-               ColorSubs = true
-           };
-
-            s.FilterCol = withFilters;
-            if (withFilters)
-            {
-                s.MakeFilterList();
-
-                
-                // previous names (for Var column)
-                DBAction.FillPreviousNames(s, SR.ExcludeTempChanges);
-
-                SR.FileName = filePathFilters;
-            }
-            else
-            {
-                SR.FileName = filePath;
-            }
-
-            // add the current survey to the report
-            SR.AddSurvey(s);
-
-            // run the report
-            SR.GenerateReport();
-            SR.OutputReportTableXML();
-
-            GC.Collect();
-            
-        }
-
-        // Set application options by examining the command line arguments
+        /// <summary>
+        /// Set application options by examining the command line arguments
+        /// </summary>
+        /// <param name="args"></param>
         private static void ProcessArgs(string [] args)
         {
             for (int i = 0; i < args.Length; i++)
@@ -155,96 +221,53 @@ namespace ITCAutomaticSurveys
                         allSurveys = true;
                         break;
                     case "d":
-                        singleDate = args[i + 1];
+                        singleDate = DateTime.Parse(args[i + 1]);
                         break;
                     case "s":
                         singleCode = args[i + 1];
+                        break;
+                    case "y":
+                        singleDate = DateTime.Today.PreviousWorkDay();
                         break;
                 }
             }
         }
 
         /// <summary>
-        ///  Return a list of surveys to be generated.
+        /// Return a list of surveys to be generated.
         /// </summary>
-        /// <param name="allSurveys"></param>
-        private static List<ReportSurvey> GetSurveyList(bool allSurveys)
+        /// <returns></returns>
+        private static List<ReportSurvey> GetSurveys()
         {
-            List<ReportSurvey> changed;
-            ReportSurvey s;
-            
-            changed = new List<ReportSurvey>();
+            List<ReportSurvey> changed = null;
 
-            using (SqlDataAdapter sql = new SqlDataAdapter())
-            using (SqlConnection conn = new SqlConnection(ConfigurationManager.ConnectionStrings["ISISConnectionString"].ConnectionString))
+            try
             {
-                conn.Open();
-
-                string query="";
-            
-                sql.SelectCommand = new SqlCommand();
-
                 if (allSurveys)
                 {
-                    query = "SELECT ID, Survey, SurveyTitle FROM tblStudyAttributes";
-                    
+                    changed = SurveyList;
                 }
                 else if (singleCode != null)
                 {
-                    query = "SELECT ID, Survey, SurveyTitle FROM tblStudyAttributes WHERE Survey = @survey";
-                    sql.SelectCommand.Parameters.AddWithValue("@survey", singleCode);
+                    changed = SurveyList.Where(x => x.SurveyCode.Equals(singleCode)).ToList();
                 }
                 else if (singleDate != null)
                 {
-                    query = "SELECT A.ID, A.Survey, B.SurveyTitle " +
-                        "FROM FN_getChangedSurveys(@date) AS A INNER JOIN tblStudyAttributes AS B ON A.Survey = B.Survey " +
-                        "GROUP BY A.ID, A.Survey, B.SurveyTitle";
-
-                    sql.SelectCommand.Parameters.AddWithValue("@date", singleDate);
-                    
+                    changed = (from Survey s in DBAction.GetChangedSurveys(singleDate.Value)
+                               select new ReportSurvey(s)).ToList();
                 }
                 else
                 {
-                    query = "SELECT A.ID, A.Survey, B.SurveyTitle " +
-                        "FROM FN_getChangedSurveys(@date) AS A INNER JOIN tblStudyAttributes AS B ON A.Survey = B.Survey " +
-                        "GROUP BY A.ID, A.Survey, B.SurveyTitle";
-
-                    sql.SelectCommand.Parameters.AddWithValue("@date", DateTime.Today);
-                   
+                    changed = (from Survey s in DBAction.GetChangedSurveys(DateTime.Today)
+                               select new ReportSurvey(s)).ToList();
                 }
-                
-                sql.SelectCommand.Connection = conn;
-                sql.SelectCommand.CommandText = query;
-
-                try
-                {
-                    using (SqlDataReader rdr = sql.SelectCommand.ExecuteReader())
-                    {
-                        while (rdr.Read())
-                        {
-                            s = new ReportSurvey
-                            {
-                                ID = 1,
-                                SID = (int)rdr["ID"],
-                                SurveyCode = rdr["Survey"].ToString(),
-                                Title = rdr["SurveyTitle"].ToString(),
-                                Backend = DateTime.Today,
-                                Primary = true,
-                                Qnum = true,
-                                WebName = rdr["SurveyTitle"].ToString()
-
-                            };
-                            changed.Add(s);
-                        }
-                    }
-                }
-                catch (Exception)
-                {
-                    int i = 0;
-                }
-
-                return changed;              
             }
+            catch
+            {
+                LogMessage("Error: Could not retrieve survey list.");
+            }
+
+            return (changed ?? new List<ReportSurvey>());
         }
     }
 }
