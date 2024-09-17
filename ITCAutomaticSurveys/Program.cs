@@ -128,7 +128,7 @@ namespace ITCAutomaticSurveys
         private static void RefreshSurvey(ReportSurvey survey, bool withFilters)
         {
             StandardSurveyReport report = new StandardSurveyReport(survey);
-
+            report.Options.ToC = true;
             report.Options.FormattingOptions.VarChangesCol = withFilters;
             report.Options.FormattingOptions.ColorSubs = true;
 
@@ -143,7 +143,6 @@ namespace ITCAutomaticSurveys
             
             StandardReportPrinter printer = new StandardReportPrinter(report, filename);
             printer.FolderPath = filepath;
-            printer.ToC = true;
             printer.Unattended = true;
 
             if (withFilters)
