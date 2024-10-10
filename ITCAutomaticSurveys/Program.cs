@@ -141,9 +141,8 @@ namespace ITCAutomaticSurveys
             string filepath = withFilters? filePathFilters : filePath;
             string filename = withFilters? report.SurveyContent.SurveyCode + ", with filters, " + dateString : report.SurveyContent.SurveyCode + ", " + dateString;
             
-            StandardReportPrinter printer = new StandardReportPrinter(report, filename);
+            AutoSurveyPrinter printer = new AutoSurveyPrinter(report, filename);
             printer.FolderPath = filepath;
-            printer.Unattended = true;
 
             if (withFilters)
             {
